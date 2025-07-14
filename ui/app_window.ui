@@ -8,7 +8,7 @@
 
         <child type="title">
           <object class="GtkLabel">
-            <property name="label">Building 3D</property>
+            <property name="label">微信助手</property>
           </object>
         </child>
 
@@ -28,7 +28,7 @@
         
         <child type="tab">
           <object class="GtkLabel" id="notebook-tab">
-            <property name="label">Tab</property>
+            <property name="label">话术</property>
           </object>
         </child>
         
@@ -40,7 +40,7 @@
         
         <child type="tab">
           <object class="GtkLabel" id="notebook-tab2">
-            <property name="label">Tab2</property>
+            <property name="label">图片</property>
           </object>
         </child>
         
