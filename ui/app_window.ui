@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="AppWindow" parent="GtkApplicationWindow">
+
+    <child type="titlebar">
+      <object class="GtkHeaderBar" id="header">
+        <property name="show-title-buttons">yes</property>
+
+        <child type="title">
+          <object class="GtkLabel">
+            <property name="label">Building 3D</property>
+          </object>
+        </child>
+
+      </object>
+    </child>
+    
+    <!-- 主视图，显示覆盖层 -->
+    <child>
+      <object class="GtkNotebook">
+      
+        
+        <child>
+          <object class="GtkListView" id="listview1">
+            <property name="show-separators">True</property>
+          </object>
+        </child>
+        
+        <child type="tab">
+          <object class="GtkLabel" id="notebook-tab">
+            <property name="label">Tab</property>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkListView" id="listview2">
+            <property name="show-separators">True</property>
+          </object>
+        </child>
+        
+        <child type="tab">
+          <object class="GtkLabel" id="notebook-tab2">
+            <property name="label">Tab2</property>
+          </object>
+        </child>
+        
+      </object>
+
+    </child>
+
+
+  </template>
+</interface>
