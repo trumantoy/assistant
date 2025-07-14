@@ -18,7 +18,7 @@
 
 ### 原型设计
 
-![Assistant](prototype\Assistant.png)
+![Assistant](prototype/Assistant.png)
 
 ## 2.工作计划
 
