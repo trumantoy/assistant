@@ -11,7 +11,7 @@ from gi.repository import GLib, Gtk, Gio
 from app_window import *
 
 if __name__ == '__main__':
-    GLib.set_application_name('Building3D')
+    GLib.set_application_name('微信助手')
     settings = Gtk.Settings.get_default()
     settings.set_property('gtk-application-prefer-dark-theme', True)
 
@@ -20,6 +20,7 @@ if __name__ == '__main__':
         app_window = builder.get_object('app_window')
         app.add_window(app_window)
 
+        
     app = Gtk.Application(application_id="xyz.building3d.app")
     app.connect('activate',do_activate)
 
