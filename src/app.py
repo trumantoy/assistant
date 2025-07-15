@@ -43,20 +43,33 @@ SetWindowPos = user32.SetWindowPos
 SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.INT, wintypes.INT,wintypes.INT, wintypes.INT, wintypes.UINT]
 SetWindowPos.restype = wintypes.BOOL
 
-# 新增 Win32 API 函数定义
-GetWindowPlacement = user32.GetWindowPlacement
-GetWindowPlacement.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.UINT)]
-GetWindowPlacement.restype = wintypes.BOOL
+MoveWindow = user32.MoveWindow
+MoveWindow.argtypes = [wintypes.HWND, wintypes.INT, wintypes.INT, wintypes.INT, wintypes.INT, wintypes.BOOL]
+MoveWindow.restype = wintypes.BOOL
 
 ShowWindow = user32.ShowWindow
 ShowWindow.argtypes = [wintypes.HWND, wintypes.INT]
 ShowWindow.restype = wintypes.BOOL
+
+# 新增 SetWindowLong 函数定义
+SetWindowLong = user32.SetWindowLongW
+SetWindowLong.argtypes = [wintypes.HWND, wintypes.INT, wintypes.LONG]
+SetWindowLong.restype = wintypes.LONG
+
+GetWindowLong = user32.GetWindowLongW
+GetWindowLong.argtypes = [wintypes.HWND, wintypes.INT]
+GetWindowLong.restype = wintypes.LONG
 
 # 定义窗口状态常量
 SW_SHOWNORMAL = 1
 SW_SHOWMINIMIZED = 2
 SW_SHOWMAXIMIZED = 3
 
+GWL_EXSTYLE = -20
+WS_EX_TOOLWINDOW = 0x00000080
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
 
 def get_wechat_window_position_and_size():
     # 微信窗口类名通常为 'WeChatMainWndForPC'，标题可能为空
@@ -75,38 +88,49 @@ def get_wechat_window_position_and_size():
         return None
 
 
-def get_wechat_window_state(hwnd):
-    placement = wintypes.UINT(0)
-    if GetWindowPlacement(hwnd, ctypes.byref(placement)):
-        return placement.value
-    return None
-
 def update_window_position(app_window):
-    wechat_info = get_wechat_window_position_and_size()
-    if wechat_info:
-        wechat_left, wechat_top, wechat_width, wechat_height = wechat_info
-        
-        # 获取微信窗口句柄
-        wechat_hwnd = FindWindowW("WeChatMainWndForPC", None)
-        if wechat_hwnd:
-            # 获取微信窗口状态
-            wechat_state = get_wechat_window_state(wechat_hwnd)
-            
-            # 获取程序窗口句柄
-            app_hwnd = GetActiveWindow()
-            if not app_hwnd:
-                app_hwnd = FindWindowW(None, "微信助手")
-                
-            if app_hwnd:
-                # 同步窗口状态
-                if wechat_state == SW_SHOWMINIMIZED or wechat_state == SW_SHOWMAXIMIZED:
-                    ShowWindow(app_hwnd, SW_SHOWMINIMIZED)
-                else:
-                    ShowWindow(app_hwnd, SW_SHOWNORMAL)
-                
-                # 移动窗口到微信右侧
-                SetWindowPos(app_hwnd,wechat_hwnd,wechat_left + wechat_width,wechat_top - 10,300,wechat_height,0x0040)
+    wechat_hwnd = FindWindowW("WeChatMainWndForPC", None)
+    app_hwnd = FindWindowW(None, "微信助手")
+
+    wechat_size = get_wechat_window_position_and_size()
+    wx_left, wx_top, wx_width, wx_height = wechat_size
+    
+    if app_window.is_suspended():
+        return True
+
+    if app_window.get_height() != wx_height:
+        app_window.set_size_request(400, wx_height)
+
+    rect = RECT()
+    GetWindowRect(app_hwnd, ctypes.byref(rect))
+    width = rect.right - rect.left
+    height = rect.bottom - rect.top
+    
+    if rect.left != wx_left + wx_width or rect.top != wx_top - 10:
+        SetWindowPos(app_hwnd, wechat_hwnd, wx_left + wx_width, wx_top - 10, 0,0, SWP_NOSIZE | SWP_NOACTIVATE)
+    else:
+        SetWindowPos(app_hwnd, wechat_hwnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+    
+    # app_hwnd = FindWindowW(None, "微信助手")
+    # current_style = GetWindowLong(app_hwnd, GWL_EXSTYLE)
+    # ex_style = SetWindowLong(app_hwnd, GWL_EXSTYLE, current_style | WS_EX_TOOLWINDOW)
+
     return True
+
+def do_close_request(sender):
+    sender.unmap()
+    return True
+
+def show_window(app_window):
+    app_window.map()
+
+def quit_window(app_window,hook_close):
+    app_window.disconnect(hook_close)
+    app_window.close()
+
+import threading
+import pystray
+from PIL import Image  
 
 
 if __name__ == '__main__':
@@ -114,29 +138,20 @@ if __name__ == '__main__':
     settings = Gtk.Settings.get_default()
     settings.set_property('gtk-application-prefer-dark-theme', True)
 
-
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = subprocess.SW_HIDE  # 隐藏窗口
-    
-    wx = subprocess.Popen(['plugins/wx.exe'],
-                        text=True,
-                        stdin=subprocess.PIPE,
-                        startupinfo=startupinfo)
-    
     def do_activate(app): 
         builder = Gtk.Builder.new_from_file('ui/app.ui')
         app_window = builder.get_object('app_window')
-        app_window.wx = wx
         app.add_window(app_window)
+        hook_close = app_window.connect("close-request", do_close_request)
+        menu = (pystray.MenuItem('显示', lambda: show_window(app_window), default=True), 
+                    pystray.Menu.SEPARATOR, 
+                    pystray.MenuItem('退出', lambda: quit_window(app_window,hook_close)))
+            
+        image = Image.open("db/images/test.jpg")
+        icon = pystray.Icon("icon", image, "图标名称", menu)
+        threading.Thread(target=icon.run, daemon=True).start()
 
-        # 获取微信窗口大小
-        wechat_size = get_wechat_window_position_and_size()
-        if wechat_size:
-            _, _, width, height = wechat_size
-            app_window.set_size_request(300, height)
-        
-        GLib.timeout_add(100, update_window_position, app_window)
+        # GLib.timeout_add(200, update_window_position, app_window)
 
     app = Gtk.Application(application_id="xyz.building3d.app")
     app.connect('activate',do_activate)
