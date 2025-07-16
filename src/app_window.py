@@ -95,8 +95,17 @@ class AppWindow (Gtk.ApplicationWindow):
 
         # 创建右键菜单模型
         menu = Gio.Menu()
-        menu.append("编辑", "win.edit")
+        menu.append("编辑", "win.edit_script")
+        menu.append("添加", "win.add_script")
         
+        action_edit_script = Gio.SimpleAction.new("edit_script", None)
+        action_edit_script.connect("activate", self.edit_script)
+        self.add_action(action_edit_script)
+
+        action_add_script = Gio.SimpleAction.new("add_script", None)
+        action_add_script.connect("activate", self.add_script)
+        self.add_action(action_add_script)
+
         # 创建弹出菜单
         self.popover = Gtk.PopoverMenu()
         self.popover.set_menu_model(menu)
@@ -116,8 +125,12 @@ class AppWindow (Gtk.ApplicationWindow):
 
         model = Gtk.StringList.new(["项目1111", "项目2", "项目3"])
         selection_model = Gtk.SingleSelection.new(model)
+        selection_model.set_autoselect(False)  # 禁用自动选择
+        selection_model.set_can_unselect(True)  # 允许取消选择
         self.listview1.set_model(selection_model)
-        
+        self.listview1.set_single_click_activate(False)
+        selection_model.unselect_all()
+                
         factory = Gtk.SignalListItemFactory()
         factory.connect("setup", self.setup_listitem1)
         factory.connect("bind", self.bind_listitem1)
@@ -146,8 +159,41 @@ class AppWindow (Gtk.ApplicationWindow):
             stdin=subprocess.PIPE,
             startupinfo=startupinfo)
         
-
         GLib.idle_add(self.update_window_position)
+
+    def edit_script(self, action, param):
+        # 获取当前选中的 ListViewItem
+        selection_model = self.listview1.get_model()
+        if selection_model.get_selected() is not None:
+            selected_index = selection_model.get_selected()
+            item = selection_model.get_item(selected_index)
+            # 创建编辑对话框
+            dialog = Gtk.Dialog(title="编辑话术", transient_for=self)
+            entry = Gtk.Entry(text=item.get_string())
+            dialog.get_content_area().append(entry)
+            dialog.add_buttons("取消", Gtk.ResponseType.CANCEL, "保存", Gtk.ResponseType.OK)
+            response = dialog.run()
+            if response == Gtk.ResponseType.OK:
+                new_text = entry.get_text()
+                # 更新 ListViewItem 的文本
+                item.set_string(new_text)
+            dialog.destroy()
+
+    def add_script(self, action, param):
+        # 创建添加对话框
+        dialog = Gtk.Dialog(title="添加话术", transient_for=self)
+        entry = Gtk.Entry()
+        dialog.get_content_area().append(entry)
+        dialog.add_buttons("取消", Gtk.ResponseType.CANCEL, "添加", Gtk.ResponseType.OK)
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            new_text = entry.get_text()
+            # 创建新的 ListViewItem 并添加到列表
+            list_store = self.listview1.get_model()
+            new_item = Gio.ListItem()
+            new_item.set_string(new_text)
+            list_store.append(new_item)
+        dialog.destroy()
 
     def get_wechat_window_position_and_size(self):
         # 微信窗口类名通常为 'WeChatMainWndForPC'，标题可能为空

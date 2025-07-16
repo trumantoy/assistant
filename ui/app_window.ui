@@ -19,7 +19,6 @@
     <child>
       <object class="GtkNotebook">
       
-        
         <child>
           <object class="GtkListView" id="listview1">
             <property name="show-separators">True</property>
