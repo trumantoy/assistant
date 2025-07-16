@@ -90,7 +90,7 @@ def get_wechat_window_position_and_size():
 
 def update_window_position(app_window):
     wechat_hwnd = FindWindowW("WeChatMainWndForPC", None)
-    app_hwnd = FindWindowW(None, "微信助手")
+    app_hwnd = FindWindowW(None, "私域助手")
 
     wechat_size = get_wechat_window_position_and_size()
     wx_left, wx_top, wx_width, wx_height = wechat_size
@@ -134,7 +134,7 @@ from PIL import Image
 
 
 if __name__ == '__main__':
-    GLib.set_application_name('微信助手')
+    GLib.set_application_name('私域助手')
     settings = Gtk.Settings.get_default()
     settings.set_property('gtk-application-prefer-dark-theme', True)
 
