@@ -1,10 +1,17 @@
 from wxauto import WeChat
 import os
+import sys
+import io
 
-if __name__ == "__main__":
+if __name__ == "__main__":    
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer,encoding='utf-8')
+    sys.stdin = io.TextIOWrapper(sys.stdin.buffer,encoding='utf-8')
+
     wx = WeChat()
     while True:
         cmd = input().strip()
+        print(cmd)
         if cmd.startswith("send-msg "):
             text = cmd[len("send-msg "):].strip()
             wx.SendMsg(text)
