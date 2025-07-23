@@ -4,11 +4,29 @@
 
     <child type="titlebar">
       <object class="GtkHeaderBar" id="header">
-        <property name="show-title-buttons">yes</property>
+        <property name="show-title-buttons">false</property>
+
+        <child type="start">
+          <object class="GtkToggleButton" id="magnetic-button">
+            <property name="label">磁吸</property>
+            <property name="icon-name">view-pin-symbolic</property>
+            <property name="visible">true</property>
+            <signal name="toggled" handler="magnetic_toggled" />
+          </object>
+        </child>
 
         <child type="title">
-          <object class="GtkLabel">
+          <object class="GtkLabel" id="title-label">
             <property name="label">私域助手</property>
+          </object>
+        </child>
+
+        <child type="end">
+          <object class="GtkButton" id="close-button">
+            <property name="label">关闭</property>
+            <property name="icon-name">window-close</property>
+            <property name="visible">true</property>
+            <signal name="clicked" handler="close_button_clicked" />
           </object>
         </child>
 
@@ -20,8 +38,14 @@
       <object class="GtkNotebook">
       
         <child>
-          <object class="GtkListView" id="listview1">
-            <property name="show-separators">True</property>
+          <object class="GtkScrolledWindow">
+            <!-- <property name="hscrollbar-policy">automatic</property>
+            <property name="vscrollbar-policy">automatic</property> -->
+            <child>
+              <object class="GtkListView" id="listview1">
+                <property name="show-separators">True</property>
+              </object>
+            </child>
           </object>
         </child>
         

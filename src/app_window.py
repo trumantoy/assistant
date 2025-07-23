@@ -5,6 +5,8 @@ from gi.repository import GLib, Gtk, Gio, Gdk, GObject
 import time
 import os
 import subprocess
+import pygetwindow as gw
+
 
 
 import ctypes
@@ -13,38 +15,10 @@ from ctypes import wintypes
 # 加载 user32.dll
 user32 = ctypes.windll.user32
 
-# 定义 RECT 结构体
-class RECT(ctypes.Structure):
-    _fields_ = [
-        ("left", wintypes.LONG),
-        ("top", wintypes.LONG),
-        ("right", wintypes.LONG),
-        ("bottom", wintypes.LONG)
-    ]
-
-# 定义 FindWindowW 和 GetWindowRect 函数
-FindWindowW = user32.FindWindowW
-FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
-FindWindowW.restype = wintypes.HWND
-
-GetWindowRect = user32.GetWindowRect
-GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
-GetWindowRect.restype = wintypes.BOOL
-
-# 使用 Win32 API 获取当前活动窗口句柄
-GetActiveWindow = user32.GetActiveWindow
-GetActiveWindow.argtypes = []
-GetActiveWindow.restype = wintypes.HWND
-
-
 # 定义 SetWindowPos 函数
 SetWindowPos = user32.SetWindowPos
 SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.INT, wintypes.INT,wintypes.INT, wintypes.INT, wintypes.UINT]
 SetWindowPos.restype = wintypes.BOOL
-
-MoveWindow = user32.MoveWindow
-MoveWindow.argtypes = [wintypes.HWND, wintypes.INT, wintypes.INT, wintypes.INT, wintypes.INT, wintypes.BOOL]
-MoveWindow.restype = wintypes.BOOL
 
 ShowWindow = user32.ShowWindow
 ShowWindow.argtypes = [wintypes.HWND, wintypes.INT]
@@ -59,12 +33,8 @@ GetWindowLong = user32.GetWindowLongW
 GetWindowLong.argtypes = [wintypes.HWND, wintypes.INT]
 GetWindowLong.restype = wintypes.LONG
 
-# 定义窗口状态常量
-SW_SHOWNORMAL = 1
-SW_SHOWMINIMIZED = 2
-SW_SHOWMAXIMIZED = 3
-
 GWL_EXSTYLE = -20
+WS_EX_APPWINDOW = 0x00040000  # 使窗口在任务栏显示图标
 WS_EX_TOOLWINDOW = 0x00000080
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
@@ -77,27 +47,12 @@ class AppWindow (Gtk.ApplicationWindow):
 
     listview1 = Gtk.Template.Child('listview1')
     listview2 = Gtk.Template.Child('listview2')
+    magnetic_button = Gtk.Template.Child('magnetic-button')
+    close_button = Gtk.Template.Child('close-button')
+    header = Gtk.Template.Child('header')
+    title_label = Gtk.Template.Child('title-label')
 
     def __init__(self):
-        # 创建自定义标题栏
-        header = Gtk.HeaderBar()
-        header.set_show_title_buttons(False)  # 禁用默认标题栏按钮
-    
-       # 新增磁吸按钮
-        self.magnetic_button = Gtk.ToggleButton()
-        self.magnetic_button.set_icon_name("view-pin-symbolic")  # 使用图钉图标
-        self.magnetic_button.set_active(False)  # 默认开启
-        self.magnetic_button.connect("toggled", self.on_magnetic_toggled)
-        header.pack_start(self.magnetic_button)  # 添加到标题栏左侧
-
-        # 添加自定义关闭按钮
-        close_button = Gtk.Button()
-        close_button.set_icon_name("window-close")  # 设置关闭图标
-        close_button.connect("clicked", lambda b: self.close())  # 绑定关闭事件
-        header.pack_end(close_button)  # 将按钮添加到标题栏右侧        
-        
-        self.set_titlebar(header)
-
         # 创建右键菜单模型
         menu = Gio.Menu()
         menu.append("添加", "win.add_script")
@@ -164,20 +119,14 @@ class AppWindow (Gtk.ApplicationWindow):
         factory.connect("bind", self.bind_listitem2)
         self.listview2.set_factory(factory)
 
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE  # 隐藏窗口
 
-        # self.wx = subprocess.Popen([r'C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\python3.12.exe',"plugins/wx.py"],
-        self.wx = subprocess.Popen(['plugins/wx.exe'],
-            text=True,encoding='utf-8',
-            stdin=subprocess.PIPE,
-            startupinfo=startupinfo)
+    @Gtk.Template.Callback()
+    def magnetic_toggled(self, button):
+         if button.get_active(): GLib.idle_add(self.update_window_position,button)
 
-
-    def on_magnetic_toggled(self, button):
-        """磁吸按钮切换回调"""
-        if button.get_active(): GLib.idle_add(self.update_window_position,button)
+    @Gtk.Template.Callback()
+    def close_button_clicked(self, button):
+        self.close()
 
     def add_script(self, action, param):
         # 获取 listview1 的选择模型
@@ -220,29 +169,27 @@ class AppWindow (Gtk.ApplicationWindow):
         if self.popover.get_visible():
             return next
 
-        wechat_hwnd = FindWindowW("WeChatMainWndForPC", None)
-        wx_rect = RECT()
-        if not GetWindowRect(wechat_hwnd, ctypes.byref(wx_rect)):    
-            return next
+        wx_windows = gw.getWindowsWithTitle('微信')
+        if not wx_windows: return next
+        wx_window : gw.Win32Window = wx_windows[0]
         
-        wx_height = wx_rect.bottom - wx_rect.top
+        wx_height = wx_window.bottom - wx_window.top
         if self.get_height() != wx_height:
             self.set_default_size(self.get_width(), wx_height)
+            pass
 
-        if 'app_hwnd' not in vars(self):
-            self.app_hwnd = FindWindowW('gdkSurfaceToplevel', "私域助手")
-
-        app_hwnd = self.app_hwnd
-
-        rect = RECT()
-        if not GetWindowRect(app_hwnd, ctypes.byref(rect)):
-            return next
-        wx_rect.right -= 10
-        wx_rect.top -= 3
-        if rect.left != wx_rect.right or rect.top != wx_rect.top:
-            SetWindowPos(app_hwnd, wechat_hwnd, wx_rect.right, wx_rect.top - 10, 0,0, SWP_NOSIZE)
+        if not hasattr(self,'app_window'):
+            self.app_window = gw.getWindowsWithTitle(self.title_label.get_label())[0]       
+            ex_style = user32.GetWindowLongW(self.app_window._hWnd, GWL_EXSTYLE)
+            new_ex_style = (ex_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
+            user32.SetWindowLongW(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
+     
+        wx_rect = wx_window.box
+        if self.app_window.left != wx_rect.left + wx_rect.width - 3 or self.app_window.top != wx_rect.top - 10:
+            self.app_window.moveTo(wx_rect.left + wx_rect.width - 3, wx_rect.top - 10)
         else:
-            SetWindowPos(app_hwnd, wechat_hwnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)
+            SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)
+            
         return next
 
     def setup_listitem1(self, factory, list_item):
@@ -258,13 +205,10 @@ class AppWindow (Gtk.ApplicationWindow):
 
         box.append(vbox)
 
-        view = Gtk.ScrolledWindow()
-        view.set_hexpand(True)
         label = Gtk.EditableLabel()
         label.set_margin_bottom(10)
-        view.set_child(label)
 
-        box.append(view)
+        box.append(label)
         
         list_item.set_child(box)
 
@@ -288,8 +232,7 @@ class AppWindow (Gtk.ApplicationWindow):
         vbox = box.get_first_child()
         btn = vbox.get_first_child()
         
-        view = vbox.get_next_sibling()
-        label = view.get_child().get_child()
+        label = vbox.get_next_sibling() 
         label.set_tooltip_text(item.get_string())
         label.set_text(item.get_string())
         
@@ -298,8 +241,8 @@ class AppWindow (Gtk.ApplicationWindow):
     # 新增方法：处理listitem1点击事件
     def send_msg_clicked(self, sender,list_item):
         item_value = list_item.get_item().get_string()
-        self.wx.stdin.write(f"send-msg {item_value}\n")
-        self.wx.stdin.flush()
+        # self.wx.stdin.write(f"send-msg {item_value}\n")
+        # self.wx.stdin.flush()
 
     def setup_listitem2(self, factory, list_item):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -339,8 +282,8 @@ class AppWindow (Gtk.ApplicationWindow):
                 with open(save_path, "wb") as f:
                     f.write(contents)
                 
-                self.wx.stdin.write(f"send-file {save_path}\n")
-                self.wx.stdin.flush()
+                # self.wx.stdin.write(f"send-file {save_path}\n")
+                # self.wx.stdin.flush()
             else:
                 print("异步下载失败: 无法获取文件内容")
                 
