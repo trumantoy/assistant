@@ -21,13 +21,10 @@ if __name__ == '__main__':
     t = None
     
     def do_activate(app): 
-        print('1')
         builder = Gtk.Builder.new_from_file('ui/app.ui')
-        print('2')
         app_window = builder.get_object('app_window')        
-        print('3')   
         app.add_window(app_window)
-        print('4')   
+
         def do_close_request(sender):
             sender.unmap()
             return True

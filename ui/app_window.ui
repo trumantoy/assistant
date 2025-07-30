@@ -35,6 +35,7 @@
     
     <!-- 主视图，显示覆盖层 -->
     <child>
+      
       <object class="GtkNotebook">
       
         <child>

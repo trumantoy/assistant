@@ -4,34 +4,11 @@ from gi.repository import GLib, Gtk, Gio, Gdk, GObject
 
 import time
 import os
-import subprocess
 import pygetwindow as gw
-
-
-
+import pyautogui as ag
+import pyperclip as pc
+import win32clipboard,win32gui
 import ctypes
-from ctypes import wintypes
-
-# 加载 user32.dll
-user32 = ctypes.windll.user32
-
-# 定义 SetWindowPos 函数
-SetWindowPos = user32.SetWindowPos
-SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.INT, wintypes.INT,wintypes.INT, wintypes.INT, wintypes.UINT]
-SetWindowPos.restype = wintypes.BOOL
-
-ShowWindow = user32.ShowWindow
-ShowWindow.argtypes = [wintypes.HWND, wintypes.INT]
-ShowWindow.restype = wintypes.BOOL
-
-# 新增 SetWindowLong 函数定义
-SetWindowLong = user32.SetWindowLongW
-SetWindowLong.argtypes = [wintypes.HWND, wintypes.INT, wintypes.LONG]
-SetWindowLong.restype = wintypes.LONG
-
-GetWindowLong = user32.GetWindowLongW
-GetWindowLong.argtypes = [wintypes.HWND, wintypes.INT]
-GetWindowLong.restype = wintypes.LONG
 
 GWL_EXSTYLE = -20
 WS_EX_APPWINDOW = 0x00040000  # 使窗口在任务栏显示图标
@@ -39,7 +16,6 @@ WS_EX_TOOLWINDOW = 0x00000080
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
-
 
 @Gtk.Template(filename='ui/app_window.ui')
 class AppWindow (Gtk.ApplicationWindow):
@@ -83,8 +59,8 @@ class AppWindow (Gtk.ApplicationWindow):
             self.listview1.get_model().set_selected(i)
 
         click_controller.connect("pressed", listview1_right_clicked)
-        self.add_controller(click_controller)
-        self.popover.set_parent(self)
+        self.listview1.add_controller(click_controller)
+        self.popover.set_parent(self.listview1)
 
         model = Gtk.StringList.new([
             '您好！我是人工客服有什么可以帮您！',
@@ -119,7 +95,6 @@ class AppWindow (Gtk.ApplicationWindow):
         factory.connect("bind", self.bind_listitem2)
         self.listview2.set_factory(factory)
 
-
     @Gtk.Template.Callback()
     def magnetic_toggled(self, button):
          if button.get_active(): GLib.idle_add(self.update_window_position,button)
@@ -144,22 +119,6 @@ class AppWindow (Gtk.ApplicationWindow):
         # 删除选中的字符串项
         string_model.remove(selection_model.get_selected())
 
-    def get_wechat_window_position_and_size(self):
-        # 微信窗口类名通常为 'WeChatMainWndForPC'，标题可能为空
-        hwnd = FindWindowW("WeChatMainWndForPC", None)
-        if hwnd == 0:
-            print("未找到微信窗口")
-            return None
-
-        rect = RECT()
-        if GetWindowRect(hwnd, ctypes.byref(rect)):
-            width = rect.right - rect.left
-            height = rect.bottom - rect.top
-            return rect.left, rect.top, width, height
-        else:
-            print("无法获取微信窗口位置和大小")
-            return None
-
     def update_window_position(self, toggled_button):
         next = toggled_button.get_active()
 
@@ -169,7 +128,8 @@ class AppWindow (Gtk.ApplicationWindow):
         if self.popover.get_visible():
             return next
 
-        wx_windows = gw.getWindowsWithTitle('微信')
+        wx_windows : gw.Win32Window = gw.getWindowsWithTitle('微信')
+        wx_windows = [wx_window for wx_window in wx_windows if win32gui.GetClassName(wx_window._hWnd) in ['Qt51514QWindowIcon','WeChatMainWndForPC']]
         if not wx_windows: return next
         wx_window : gw.Win32Window = wx_windows[0]
         
@@ -179,17 +139,17 @@ class AppWindow (Gtk.ApplicationWindow):
             pass
 
         if not hasattr(self,'app_window'):
-            self.app_window = gw.getWindowsWithTitle(self.title_label.get_label())[0]       
-            ex_style = user32.GetWindowLongW(self.app_window._hWnd, GWL_EXSTYLE)
+            self.app_window = gw.getWindowsWithTitle(self.title_label.get_label())[0]
+            ex_style = win32gui.GetWindowLong(self.app_window._hWnd, GWL_EXSTYLE)
             new_ex_style = (ex_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
-            user32.SetWindowLongW(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
+            win32gui.SetWindowLong(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
+            # result = SetParent(wx_window._hWnd,self.app_window._hWnd)
      
         wx_rect = wx_window.box
         if self.app_window.left != wx_rect.left + wx_rect.width - 3 or self.app_window.top != wx_rect.top - 10:
             self.app_window.moveTo(wx_rect.left + wx_rect.width - 3, wx_rect.top - 10)
         else:
-            SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)
-            
+            win32gui.SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)            
         return next
 
     def setup_listitem1(self, factory, list_item):
@@ -241,9 +201,17 @@ class AppWindow (Gtk.ApplicationWindow):
     # 新增方法：处理listitem1点击事件
     def send_msg_clicked(self, sender,list_item):
         item_value = list_item.get_item().get_string()
-        # self.wx.stdin.write(f"send-msg {item_value}\n")
-        # self.wx.stdin.flush()
-
+        pc.copy(item_value)
+        wx_windows : list[gw.Win32Window] = gw.getWindowsWithTitle('微信')
+        wx_windows = [wx_window for wx_window in wx_windows if win32gui.GetClassName(wx_window._hWnd) in ['Qt51514QWindowIcon','WeChatMainWndForPC']]
+        if not wx_windows: return
+        wx_window = wx_windows[0]
+        if wx_window.isMinimized:
+            wx_window.restore()
+        wx_window.activate()
+        ag.hotkey('ctrl','v')
+        ag.press('enter')
+        
     def setup_listitem2(self, factory, list_item):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         
@@ -281,9 +249,43 @@ class AppWindow (Gtk.ApplicationWindow):
             
                 with open(save_path, "wb") as f:
                     f.write(contents)
-                
-                # self.wx.stdin.write(f"send-file {save_path}\n")
-                # self.wx.stdin.flush()
+
+                class DROPFILES(ctypes.Structure):
+                    _fields_ = [
+                    ("pFiles", ctypes.c_uint),
+                    ("x", ctypes.c_long),
+                    ("y", ctypes.c_long),
+                    ("fNC", ctypes.c_int),
+                    ("fWide", ctypes.c_bool),
+                ]
+                    
+                pDropFiles = DROPFILES()
+                pDropFiles.pFiles = ctypes.sizeof(DROPFILES)
+                pDropFiles.fWide = True
+                matedata = bytes(pDropFiles)
+
+                file = save_path.replace("/", "\\")
+                data = file.encode("U16")[2:]+b"\0\0"
+
+                try:
+                    win32clipboard.OpenClipboard()
+                    win32clipboard.EmptyClipboard()
+                    win32clipboard.SetClipboardData(15, matedata+data)
+                except Exception as e:
+                    print(e)
+                finally:
+                    win32clipboard.CloseClipboard()
+
+                wx_windows : gw.Win32Window = gw.getWindowsWithTitle('微信')
+                wx_windows = [wx_window for wx_window in wx_windows if win32gui.GetClassName(wx_window._hWnd) in ['Qt51514QWindowIcon','WeChatMainWndForPC']]
+                if not wx_windows: return
+                wx_window = wx_windows[0]
+                if wx_window.isMinimized:
+                    wx_window.restore()
+                wx_window.activate()
+                ag.hotkey('ctrl','v')
+                ag.press('enter')
+
             else:
                 print("异步下载失败: 无法获取文件内容")
                 
