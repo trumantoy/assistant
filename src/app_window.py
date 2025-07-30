@@ -7,7 +7,7 @@ import os
 import pygetwindow as gw
 import pyautogui as ag
 import pyperclip as pc
-import win32clipboard,win32gui
+import win32clipboard,win32gui,win32api,win32con,win32print
 import ctypes
 
 GWL_EXSTYLE = -20
@@ -16,6 +16,24 @@ WS_EX_TOOLWINDOW = 0x00000080
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
+
+# 新增函数：使用 pywin32 获取屏幕缩放比例
+def get_screen_scale():
+    try:
+        # 获取主显示器的设备上下文
+        hdc = win32gui.GetDC(0)
+        # 获取水平和垂直方向的 DPI
+        dpi_x = win32print.GetDeviceCaps(hdc, win32con.LOGPIXELSX)
+        dpi_y = win32print.GetDeviceCaps(hdc, win32con.LOGPIXELSY)
+        # 释放设备上下文
+        win32gui.ReleaseDC(0, hdc)
+        # 计算缩放比例，标准 DPI 为 96
+        scale_x = dpi_x / 96
+        scale_y = dpi_y / 96
+        return scale_x, scale_y
+    except Exception as e:
+        print(f"获取屏幕缩放比例失败: {e}")
+        return 1.0, 1.0
 
 @Gtk.Template(filename='ui/app_window.ui')
 class AppWindow (Gtk.ApplicationWindow):
@@ -28,7 +46,7 @@ class AppWindow (Gtk.ApplicationWindow):
     close_button = Gtk.Template.Child('close-button')
     header = Gtk.Template.Child('header')
     title_label = Gtk.Template.Child('title-label')
-
+    scale_x, scale_y = get_screen_scale()
 
     def __init__(self):
         # 创建右键菜单模型
@@ -138,20 +156,20 @@ class AppWindow (Gtk.ApplicationWindow):
             wx_windows = [wx_window for wx_window in wx_windows if win32gui.GetClassName(wx_window._hWnd) in ['Qt51514QWindowIcon','WeChatMainWndForPC','WeChatLoginWndForPC']]
             if not wx_windows: 
                 self.view.set_visible_child_name('page1')
-                self.set_default_size(600, 380)
+                self.set_default_size(600 * self.scale_x, 380 * self.scale_x)
                 return True
 
             wx_window : gw.Win32Window = wx_windows[0]
 
             last_view_name = self.view.get_visible_child_name()
-            if wx_window.width < 300:
+            if wx_window.width < 300 * self.scale_x:
                 self.view.set_visible_child_name('page1')
-                self.set_default_size(600, wx_window.height)
+                self.set_default_size(600 * self.scale_x, wx_window.height)
             else:
                 self.view.set_visible_child_name('page2')
             
                 if last_view_name == 'page1':
-                    self.set_default_size(300, wx_window.height)
+                    self.set_default_size(300 * self.scale_x, wx_window.height)
 
             if not magnet:
                 return True
