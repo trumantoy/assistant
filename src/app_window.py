@@ -21,12 +21,14 @@ SWP_NOACTIVATE = 0x0010
 class AppWindow (Gtk.ApplicationWindow):
     __gtype_name__ = "AppWindow"
 
+    view = Gtk.Template.Child('view')
     listview1 = Gtk.Template.Child('listview1')
     listview2 = Gtk.Template.Child('listview2')
     magnetic_button = Gtk.Template.Child('magnetic-button')
     close_button = Gtk.Template.Child('close-button')
     header = Gtk.Template.Child('header')
     title_label = Gtk.Template.Child('title-label')
+
 
     def __init__(self):
         # 创建右键菜单模型
@@ -95,9 +97,12 @@ class AppWindow (Gtk.ApplicationWindow):
         factory.connect("bind", self.bind_listitem2)
         self.listview2.set_factory(factory)
 
+        GLib.idle_add(self.update_window_position,self.magnetic_button)
+
     @Gtk.Template.Callback()
     def magnetic_toggled(self, button):
-         if button.get_active(): GLib.idle_add(self.update_window_position,button)
+        #  if button.get_active(): 
+        pass
 
     @Gtk.Template.Callback()
     def close_button_clicked(self, button):
@@ -120,37 +125,56 @@ class AppWindow (Gtk.ApplicationWindow):
         string_model.remove(selection_model.get_selected())
 
     def update_window_position(self, toggled_button):
-        next = toggled_button.get_active()
+        try:
+            magnet = toggled_button.get_active()
 
-        if self.is_suspended() or not self.get_mapped():
-            return next
+            if self.is_suspended() or not self.get_mapped():
+                return True
 
-        if self.popover.get_visible():
-            return next
+            if self.popover.get_visible():
+                return True
 
-        wx_windows : gw.Win32Window = gw.getWindowsWithTitle('微信')
-        wx_windows = [wx_window for wx_window in wx_windows if win32gui.GetClassName(wx_window._hWnd) in ['Qt51514QWindowIcon','WeChatMainWndForPC']]
-        if not wx_windows: return next
-        wx_window : gw.Win32Window = wx_windows[0]
-        
-        wx_height = wx_window.bottom - wx_window.top
-        if self.get_height() != wx_height:
-            self.set_default_size(self.get_width(), wx_height)
-            pass
+            wx_windows : gw.Win32Window = gw.getWindowsWithTitle('微信')
+            wx_windows = [wx_window for wx_window in wx_windows if win32gui.GetClassName(wx_window._hWnd) in ['Qt51514QWindowIcon','WeChatMainWndForPC','WeChatLoginWndForPC']]
+            if not wx_windows: 
+                self.view.set_visible_child_name('page1')
+                self.set_default_size(600, 380)
+                return True
 
-        if not hasattr(self,'app_window'):
-            self.app_window = gw.getWindowsWithTitle(self.title_label.get_label())[0]
-            ex_style = win32gui.GetWindowLong(self.app_window._hWnd, GWL_EXSTYLE)
-            new_ex_style = (ex_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
-            win32gui.SetWindowLong(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
-            # result = SetParent(wx_window._hWnd,self.app_window._hWnd)
-     
-        wx_rect = wx_window.box
-        if self.app_window.left != wx_rect.left + wx_rect.width - 3 or self.app_window.top != wx_rect.top - 10:
-            self.app_window.moveTo(wx_rect.left + wx_rect.width - 3, wx_rect.top - 10)
-        else:
-            win32gui.SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)            
-        return next
+            wx_window : gw.Win32Window = wx_windows[0]
+
+            last_view_name = self.view.get_visible_child_name()
+            if wx_window.width < 300:
+                self.view.set_visible_child_name('page1')
+                self.set_default_size(600, wx_window.height)
+            else:
+                self.view.set_visible_child_name('page2')
+            
+                if last_view_name == 'page1':
+                    self.set_default_size(300, wx_window.height)
+
+            if not magnet:
+                return True
+                    
+            if self.get_height() != wx_window.height:
+                self.set_default_size(self.get_default_size()[0], wx_window.height)
+
+            if not hasattr(self,'app_window'):
+                self.app_window = gw.getWindowsWithTitle(self.title_label.get_label())[0]
+                ex_style = win32gui.GetWindowLong(self.app_window._hWnd, GWL_EXSTYLE)
+                new_ex_style = (ex_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
+                win32gui.SetWindowLong(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
+                # result = SetParent(wx_window._hWnd,self.app_window._hWnd)
+            
+            wx_rect = wx_window.box
+            if self.app_window.left != wx_rect.left + wx_rect.width - 10 or self.app_window.top != wx_rect.top - 10:
+                self.app_window.moveTo(wx_rect.left + wx_rect.width - 10, wx_rect.top - 10)
+            else:
+                win32gui.SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)
+        except Exception as e:
+            print(e)
+            
+        return True
 
     def setup_listitem1(self, factory, list_item):
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -209,6 +233,7 @@ class AppWindow (Gtk.ApplicationWindow):
         if wx_window.isMinimized:
             wx_window.restore()
         wx_window.activate()
+        time.sleep(0.5)
         ag.hotkey('ctrl','v')
         ag.press('enter')
         
@@ -283,6 +308,7 @@ class AppWindow (Gtk.ApplicationWindow):
                 if wx_window.isMinimized:
                     wx_window.restore()
                 wx_window.activate()
+                time.sleep(0.5)
                 ag.hotkey('ctrl','v')
                 ag.press('enter')
 
