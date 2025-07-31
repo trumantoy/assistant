@@ -185,8 +185,8 @@ class AppWindow (Gtk.ApplicationWindow):
                 # result = SetParent(wx_window._hWnd,self.app_window._hWnd)
             
             wx_rect = wx_window.box
-            if self.app_window.left != wx_rect.left + wx_rect.width - 10 or self.app_window.top != wx_rect.top - 10:
-                self.app_window.moveTo(wx_rect.left + wx_rect.width - 10, wx_rect.top - 10)
+            if self.app_window.left != wx_rect.left + wx_rect.width - 10 or self.app_window.top != wx_rect.top - 12:
+                self.app_window.moveTo(wx_rect.left + wx_rect.width - 10, wx_rect.top - 12)
             else:
                 win32gui.SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)
         except Exception as e:

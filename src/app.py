@@ -16,7 +16,7 @@ if __name__ == '__main__':
     GLib.set_application_name('私域助手')
     settings = Gtk.Settings.get_default()
     settings.set_property('gtk-application-prefer-dark-theme', True)
-
+    
     global t
     t = None
     
@@ -29,7 +29,11 @@ if __name__ == '__main__':
             app_window.close()
             icon.stop()
 
-        hook_close = app_window.connect("close-request", lambda sender: sender.unmap())
+        def do_close_request(sender):
+            sender.unmap() 
+            return True
+
+        hook_close = app_window.connect("close-request", do_close_request)
         menu = (pystray.MenuItem('显示', lambda: app_window.map(), default=True), 
                 pystray.Menu.SEPARATOR, 
                 pystray.MenuItem('退出', lambda: quit_window(app_window,hook_close)))
