@@ -49,6 +49,17 @@ class AppWindow (Gtk.ApplicationWindow):
     scale_x, scale_y = get_screen_scale()
 
     def __init__(self):
+
+        provider = Gtk.CssProvider.new()
+        css = """
+            .x {
+                border-radius: 0;
+            }
+            """
+        provider.load_from_data(css)
+        self.get_style_context().add_class("x")
+        Gtk.StyleContext.add_provider_for_display(self.get_display(),provider,Gtk.STYLE_PROVIDER_PRIORITY_USER)
+
         # 创建右键菜单模型
         menu = Gio.Menu()
         menu.append("添加", "win.add_script")
