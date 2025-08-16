@@ -9,6 +9,7 @@ import pyautogui as ag
 import pyperclip as pc
 import win32clipboard,win32gui,win32api,win32con,win32print
 import ctypes
+import json
 
 GWL_EXSTYLE = -20
 WS_EX_APPWINDOW = 0x00040000  # 使窗口在任务栏显示图标
@@ -93,16 +94,10 @@ class AppWindow (Gtk.ApplicationWindow):
         self.listview1.add_controller(click_controller)
         self.popover.set_parent(self.listview1)
 
-        model = Gtk.StringList.new([
-            '您好！我是人工客服有什么可以帮您！',
-            '在的哟，请说',
-            '亲亲，现在活动咨询的人数非常多，回复有点慢多多谅解，您稍等哈，这边会一一为您解答！',
-            '亲亲看您这么会议价，家里的财政大权一定是您掌握的吧~我都要和您取取经，等以后我成 家了，也要这么会过日子，持家有道~',
-            '您还的这个价格，我确实很为难。都是手工活，利润不高，您也让我们有点微薄的利润， 能给工人一口饭吃呢，您手下留情哦~~~',
-            '亲亲这价格我确实给不到，非常抱歉哈~ 您也可以多对比对比其它的商家，这价格您也许 在淘宝上可以买家，但是品质和作工以及服务就很难说了~',
-            '非常抱歉，给您带来了困扰，亲可以麻烦您拍照一下，用尺子测量尺寸的照片发过来我看下吗？',
-            '亲，可以退回来我们帮您改一下，不收手工费，需要您承担来回运费哦。',
-            '亲稍等，这边马上帮您联系快递核实下情况，您放心一定会帮您解决的，一会给您回复哈。'])
+        with open('db.json', 'r', encoding='utf-8') as file:
+            self.db = json.load(file)
+
+        model = Gtk.StringList.new(self.db['话术'])
 
         selection_model = Gtk.SingleSelection.new(model)
         self.listview1.set_model(selection_model)
@@ -112,11 +107,7 @@ class AppWindow (Gtk.ApplicationWindow):
         factory.connect("bind", self.bind_listitem1)
         self.listview1.set_factory(factory)
 
-        model = Gtk.StringList.new([
-            'https://picx.zhimg.com/v2-d6f44389971daab7e688e5b37046e4e4_720w.jpg?source=172ae18b',
-            'https://ts3.tc.mm.bing.net/th/id/OIP-C.8X0x4T7APkN7J7q7yOYy3gHaE7?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
-            'https://picx.zhimg.com/v2-6ca9e1a5c977ad26a53fcc11a7ba9f57_720w.jpg?source=172ae18b'
-            ])
+        model = Gtk.StringList.new(self.db['图片'])
         
         selection_model = Gtk.SingleSelection.new(model)
         self.listview2.set_model(selection_model)
@@ -125,6 +116,39 @@ class AppWindow (Gtk.ApplicationWindow):
         factory.connect("setup", self.setup_listitem2)
         factory.connect("bind", self.bind_listitem2)
         self.listview2.set_factory(factory)
+
+        # 创建右键菜单模型
+        menu = Gio.Menu()
+        menu.append("添加", "win.add_image")
+        menu.append("删除", "win.delete_image")
+        
+        action_add_image = Gio.SimpleAction.new("add_image", None)
+        action_add_image.connect("activate", self.add_image)
+        self.add_action(action_add_image)
+
+        action_delete_image = Gio.SimpleAction.new("delete_image", None)
+        action_delete_image.connect("activate", self.delete_image)
+        self.add_action(action_delete_image)
+
+        # 创建弹出菜单
+        self.popover2 = Gtk.PopoverMenu()
+        self.popover2.set_menu_model(menu)
+
+        # 添加右键点击控制器
+        click_controller = Gtk.GestureClick(button=3)  # 右键
+        def listview2_right_clicked(c, n, x, y):
+            i = self.listview2.get_model().get_selected()
+
+            rect = Gdk.Rectangle()
+            rect.x = x
+            rect.y = y
+            self.popover2.set_pointing_to(rect)
+            self.popover2.popup()
+            self.listview2.get_model().set_selected(i)
+
+        click_controller.connect("pressed", listview2_right_clicked)
+        self.listview2.add_controller(click_controller)
+        self.popover2.set_parent(self.listview2)
 
         GLib.idle_add(self.update_window_position,self.magnetic_button)
 
@@ -144,6 +168,8 @@ class AppWindow (Gtk.ApplicationWindow):
         string_model = selection_model.get_model()
         # 向 StringList 模型中添加新的字符串项
         string_model.append("新话术")
+        self.db['话术'].append("新话术")
+        json.dump(self.db,open('db.json','w'),ensure_ascii=False,indent=2)
 
     def delete_script(self, action, param):
         # 获取 listview1 的选择模型
@@ -152,6 +178,8 @@ class AppWindow (Gtk.ApplicationWindow):
         string_model = selection_model.get_model()
         # 删除选中的字符串项
         string_model.remove(selection_model.get_selected())
+        del self.db['话术'][selection_model.get_selected()]
+        json.dump(self.db,open('db.json','w'),ensure_ascii=False,indent=2)
 
     def update_window_position(self, toggled_button):
         try:
@@ -189,12 +217,19 @@ class AppWindow (Gtk.ApplicationWindow):
                 self.set_default_size(self.get_default_size()[0], wx_window.height)
 
             if not hasattr(self,'app_window'):
-                self.app_window = gw.getWindowsWithTitle(self.title_label.get_label())[0]
+                min_n = 9999
+                for app_window in  gw.getWindowsWithTitle(self.title_label.get_label()):
+                    n = (app_window.width + app_window.height) - (self.get_width() + self.get_height())
+                    if n < min_n:
+                        min_n = n
+                        self.app_window = app_window
+                
                 ex_style = win32gui.GetWindowLong(self.app_window._hWnd, GWL_EXSTYLE)
                 new_ex_style = (ex_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
                 win32gui.SetWindowLong(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
                 # result = SetParent(wx_window._hWnd,self.app_window._hWnd)
-            
+
+
             wx_rect = wx_window.box
             if self.app_window.left != wx_rect.left + wx_rect.width - 10 or self.app_window.top != wx_rect.top - 12:
                 self.app_window.moveTo(wx_rect.left + wx_rect.width - 10, wx_rect.top - 12)
@@ -220,7 +255,6 @@ class AppWindow (Gtk.ApplicationWindow):
 
         label = Gtk.EditableLabel()
         label.set_margin_bottom(10)
-
         box.append(label)
         
         list_item.set_child(box)
@@ -228,16 +262,27 @@ class AppWindow (Gtk.ApplicationWindow):
         # 添加鼠标移动控制器
         motion_controller = Gtk.EventControllerMotion()
         motion_controller.connect("enter", self.on_listitem1_enter, list_item)
-        motion_controller.connect("leave", self.on_listitem1_leave, list_item)
+        motion_controller.connect("leave", self.on_listitem1_leave, list_item,label)
         box.add_controller(motion_controller)
 
     def on_listitem1_enter(self, controller, x, y, list_item):
         """鼠标进入列表项时的回调"""
         self.listview1.get_model().set_selected(list_item.get_position())
 
-    def on_listitem1_leave(self, controller, list_item):
+    def on_listitem1_leave(self, controller, list_item,label):
         """鼠标离开列表项时的回调"""
         self.listview1.get_model().unselect_item(list_item.get_position())
+        
+        new_text = label.get_text()
+        if new_text == list_item.get_item().get_string():
+            return
+        
+        self.db['话术'][list_item.get_position()] = new_text
+        json.dump(self.db,open('db.json','w'),ensure_ascii=False,indent=2)
+
+        model = Gtk.StringList.new(self.db['话术'])
+        selection_model = self.listview1.get_model()
+        selection_model.set_model(model)
 
     def bind_listitem1(self, factory, list_item):
         item = list_item.get_item()
@@ -245,11 +290,11 @@ class AppWindow (Gtk.ApplicationWindow):
         vbox = box.get_first_child()
         btn = vbox.get_first_child()
         
-        label = vbox.get_next_sibling() 
+        label = vbox.get_next_sibling()
         label.set_tooltip_text(item.get_string())
         label.set_text(item.get_string())
-        
         label.set_max_width_chars(2)
+
         
     # 新增方法：处理listitem1点击事件
     def send_msg_clicked(self, sender,list_item):
@@ -283,7 +328,7 @@ class AppWindow (Gtk.ApplicationWindow):
         item = list_item.get_item()
         box = list_item.get_child()
         picture = box.get_first_child()
-        file = Gio.File.new_for_uri(item.get_string())
+        file = Gio.File.new_for_path(item.get_string())
         picture.set_file(file)
 
     def on_item_double_click(self, controller, n_press, x, y):
@@ -343,4 +388,44 @@ class AppWindow (Gtk.ApplicationWindow):
 
             else:
                 print("异步下载失败: 无法获取文件内容")
-                
+    
+    def add_image(self, action, param):
+        dialog = Gtk.FileDialog()
+        dialog.set_modal(True)
+
+        filter_text = Gtk.FileFilter()
+        filter_text.set_name("ZIP 文件")
+        filter_text.add_pattern("*.jpg")
+        filter_text.add_pattern("*.png")
+
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(filter_text)
+        dialog.set_filters(filters)
+        dialog.set_default_filter(filter_text)
+
+        def open_file(dialog, result): 
+            file_path = None
+            try:
+                file = dialog.open_finish(result)
+                file_path = file.get_path()
+            except:
+                return            
+            
+            selection_model = self.listview2.get_model()
+            # 从选择模型中获取底层的 StringList 模型
+            string_model = selection_model.get_model()
+            # 删除选中的字符串项
+            string_model.append(file_path)
+            self.db['图片'].append(file_path)
+            json.dump(self.db,open('db.json','w'),ensure_ascii=False,indent=2)
+        dialog.open(None, None, open_file) 
+
+    def delete_image(self, action, param):
+        # 获取 listview1 的选择模型
+        selection_model = self.listview2.get_model()
+        # 从选择模型中获取底层的 StringList 模型
+        string_model = selection_model.get_model()
+        # 删除选中的字符串项
+        string_model.remove(selection_model.get_selected())
+        self.db['图片'].remove(selection_model.get_selected())
+        json.dump(self.db,open('db.json','w'),ensure_ascii=False,indent=2)

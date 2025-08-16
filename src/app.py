@@ -38,7 +38,7 @@ if __name__ == '__main__':
                 pystray.Menu.SEPARATOR, 
                 pystray.MenuItem('退出', lambda: quit_window(app_window,hook_close)))
         
-        image = Image.open("db/tray.png")
+        image = Image.open("icon/tray.png")
         icon = pystray.Icon("icon", image, "私域助手", menu)
 
         t = threading.Thread(target=icon.run)
