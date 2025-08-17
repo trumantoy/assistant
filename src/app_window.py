@@ -7,7 +7,7 @@ import os
 import pygetwindow as gw
 import pyautogui as ag
 import pyperclip as pc
-import win32clipboard,win32gui,win32api,win32con,win32print
+import win32clipboard,win32gui,win32api,win32con,win32print,win32process
 import ctypes
 import json
 
@@ -35,6 +35,9 @@ def get_screen_scale():
     except Exception as e:
         print(f"获取屏幕缩放比例失败: {e}")
         return 1.0, 1.0
+
+from ctypes import windll, CFUNCTYPE, c_int, POINTER, c_void_p
+WNDPROC = CFUNCTYPE(c_int,c_int, c_int, c_void_p, POINTER(c_void_p))
 
 @Gtk.Template(filename='ui/app_window.ui')
 class AppWindow (Gtk.ApplicationWindow):
@@ -223,18 +226,33 @@ class AppWindow (Gtk.ApplicationWindow):
                     if n < min_n:
                         min_n = n
                         self.app_window = app_window
+
+                # start_hook(self.app_window._hWnd)
+
                 
                 ex_style = win32gui.GetWindowLong(self.app_window._hWnd, GWL_EXSTYLE)
                 new_ex_style = (ex_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
                 win32gui.SetWindowLong(self.app_window._hWnd, GWL_EXSTYLE, new_ex_style)
-                # result = SetParent(wx_window._hWnd,self.app_window._hWnd)
+                
+                def wnd_proc(wnd,msg,wp,lp):
+                    class STYLESTRUCT(ctypes.Structure):
+                        _fields_ = [("styleOld", ctypes.c_uint), ("styleNew", ctypes.c_uint)]
 
+                    if msg == win32con.WM_STYLECHANGING:
+                        style_struct = ctypes.cast(lp, ctypes.POINTER(STYLESTRUCT)).contents
+                        style_struct.styleNew = style_struct.styleOld
+                        return 0  # 返回0表示消息已处理
 
+                    return win32gui.CallWindowProc(self.old_wnd_proc, wnd,msg,wp,lp)
+
+                self.old_wnd_proc = win32gui.SetWindowLong(self.app_window._hWnd, win32con.GWL_WNDPROC, wnd_proc)
+          
             wx_rect = wx_window.box
             if self.app_window.left != wx_rect.left + wx_rect.width - 10 or self.app_window.top != wx_rect.top - 12:
                 self.app_window.moveTo(wx_rect.left + wx_rect.width - 10, wx_rect.top - 12)
             else:
                 win32gui.SetWindowPos(self.app_window._hWnd,wx_window._hWnd, 0, 0, 0,0, SWP_NOMOVE | SWP_NOSIZE)
+
         except Exception as e:
             print(e)
             
